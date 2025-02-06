@@ -54,6 +54,22 @@ jobs:
           name: Deploy Service C to PRD
           command: echo "Deploying Service C to Production"
 
+  deploy_staging:
+    executor: default
+    steps:
+      - checkout
+      - run:
+          name: Deploy Staging
+          command: echo "Deploying Staging"
+
+  deploy_prd:
+    executor: default
+    steps:
+      - checkout
+      - run:
+          name: Deploy PRD
+          command: echo "Deploying PRD"
+
 # ワークフローの定義
 workflows:
   version: 2
