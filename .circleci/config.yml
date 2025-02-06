@@ -141,7 +141,7 @@ jobs:
 
             # 承認ジョブの承認処理
             for APPROVAL_JOB in "${APPROVAL_JOBS[@]}"; do
-              IFS=';' read -r WF_ID JOB_ID APPROVAL_REQ_ID <<< "${APPROVAL_JOB}"
+              IFS=';' read -r WF_ID JOB_ID APPROVAL_REQ_ID \<< "${APPROVAL_JOB}"
 
               echo "Approving Workflow ID: ${WF_ID}, Job ID: ${JOB_ID}, Approval Request ID: ${APPROVAL_REQ_ID}..."
 
