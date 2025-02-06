@@ -70,6 +70,104 @@ jobs:
           name: Deploy PRD
           command: echo "Deploying PRD"
 
+  approve_other_workflows:
+    executor: default
+    steps:
+      - run:
+          name: Approve Other Workflows
+          command: |
+            # 環境変数から必要な情報を取得
+            WORKFLOW_ID=$CIRCLE_WORKFLOW_ID  # 現在のワークフローID
+            PIPELINE_ID=$CIRCLE_PIPELINE_ID  # 現在のパイプラインID
+
+            # パイプライン内のワークフローを取得
+            WORKFLOWS=$(curl -s -u "${CIRCLECI_TOKEN}:" \
+              "https://circleci.com/api/v2/pipeline/${PIPELINE_ID}/workflow" | \
+              jq -c '.items[]')
+
+            if [ -z "${WORKFLOWS}" ]; then
+              echo "No workflows found for pipeline ${PIPELINE_ID}."
+              exit 0
+            fi
+
+            # 承認ジョブを格納する配列
+            declare -a APPROVAL_JOBS
+
+            # 各ワークフローをループ
+            for WORKFLOW in ${WORKFLOWS}; do
+              WORKFLOW_ID=$(echo "${WORKFLOW}" | jq -r '.id')
+              WORKFLOW_NAME=$(echo "${WORKFLOW}" | jq -r '.name')
+              WORKFLOW_STATUS=$(echo "${WORKFLOW}" | jq -r '.status')
+
+              echo "Processing Workflow: ${WORKFLOW_NAME} (ID: ${WORKFLOW_ID}, Status: ${WORKFLOW_STATUS})"
+
+              # ワークフローが on_hold または blocking の場合のみ処理
+              if [[ "${WORKFLOW_STATUS}" == "on_hold" || "${WORKFLOW_STATUS}" == "blocking" ]]; then
+
+                echo "Fetching jobs for workflow '${WORKFLOW_NAME}'..."
+
+                # ワークフロー内のジョブを取得
+                JOBS=$(curl -s -u "${CIRCLECI_TOKEN}:" \
+                  "https://circleci.com/api/v2/workflow/${WORKFLOW_ID}/job" | \
+                  jq -c '.items[]')
+
+                # 各ジョブをループ
+                for JOB in ${JOBS}; do
+                  JOB_TYPE=$(echo "${JOB}" | jq -r '.type')
+
+                  # 承認ジョブのみを対象
+                  if [ "${JOB_TYPE}" == "approval" ]; then
+                    JOB_ID=$(echo "${JOB}" | jq -r '.id')
+                    APPROVAL_REQUEST_ID=$(echo "${JOB}" | jq -r '.approval_request_id')
+
+                    echo "Found Approval Job: ID=${JOB_ID}, Approval Request ID=${APPROVAL_REQUEST_ID}, Name=$(echo "${JOB}" | jq -r '.name')"
+
+                    # 承認ジョブを配列に追加
+                    APPROVAL_JOBS+=("${WORKFLOW_ID};${JOB_ID};${APPROVAL_REQUEST_ID}")
+                  fi
+                done
+              else
+                echo "Workflow '${WORKFLOW_NAME}' is not in a hold state. Skipping."
+              fi
+            done
+
+            # 承認ジョブが存在しない場合は終了
+            if [ ${#APPROVAL_JOBS[@]} -eq 0 ]; then
+              echo "No approval jobs found to approve."
+              exit 0
+            fi
+
+            echo "Found ${#APPROVAL_JOBS[@]} approval job(s). Proceeding to approve..."
+
+            # 承認ジョブの承認処理
+            for APPROVAL_JOB in "${APPROVAL_JOBS[@]}"; do
+              IFS=';' read -r WF_ID JOB_ID APPROVAL_REQ_ID <<< "${APPROVAL_JOB}"
+
+              echo "Approving Workflow ID: ${WF_ID}, Job ID: ${JOB_ID}, Approval Request ID: ${APPROVAL_REQ_ID}..."
+
+              # 承認APIエンドポイント
+              APPROVE_URL="https://circleci.com/api/v2/workflow/${WF_ID}/approve/${APPROVAL_REQ_ID}"
+
+              # 承認リクエスト
+              RESPONSE=$(curl -s -X POST \
+                --header "Circle-Token: ${CIRCLECI_TOKEN}" \
+                "${APPROVE_URL}")
+
+              # ステータスコードの取得
+              HTTP_STATUS=$(echo "${RESPONSE}" | jq -r '.code')
+
+              # レスポンスの確認
+              if [ "${HTTP_STATUS}" == "0" ]; then
+                echo "Successfully approved approval job ID: ${JOB_ID}"
+              else
+                echo "Failed to approve approval job ID: ${JOB_ID}. Response: ${RESPONSE}"
+              fi
+            done
+
+            echo "All approval jobs have been processed."
+
+            done
+
 # ワークフローの定義
 workflows:
   version: 2
@@ -102,5 +200,13 @@ workflows:
           requires:
             - deploy_staging
       - deploy_prd:
+          requires:
+            - approval_job
+
+  approve:
+    jobs:
+      - approval_job:
+          type: approval
+      - approve_other_workflows:
           requires:
             - approval_job
