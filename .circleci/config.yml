@@ -166,8 +166,6 @@ jobs:
 
             echo "All approval jobs have been processed."
 
-            done
-
 # ワークフローの定義
 workflows:
   version: 2
