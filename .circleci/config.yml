@@ -4,6 +4,7 @@ executors:
   default:
     docker:
       - image: cimg/base:current
+    resource_class: small
 
 jobs:
   deploy_service_a_stg:
