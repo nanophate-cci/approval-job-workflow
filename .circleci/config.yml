@@ -1,0 +1,90 @@
+version: 2.1
+
+executors:
+  default:
+    docker:
+      - image: cimg/base:current
+
+jobs:
+  deploy_service_a_stg:
+    executor: default
+    steps:
+      - checkout
+      - run:
+          name: Deploy Service A to STG
+          command: echo "Deploying Service A to Staging"
+
+  deploy_service_b_stg:
+    executor: default
+    steps:
+      - checkout
+      - run:
+          name: Deploy Service B to STG
+          command: echo "Deploying Service B to Staging"
+
+  deploy_service_c_stg:
+    executor: default
+    steps:
+      - checkout
+      - run:
+          name: Deploy Service C to STG
+          command: echo "Deploying Service C to Staging"
+
+  deploy_service_a_prd:
+    executor: default
+    steps:
+      - checkout
+      - run:
+          name: Deploy Service A to PRD
+          command: echo "Deploying Service A to Production"
+
+  deploy_service_b_prd:
+    executor: default
+    steps:
+      - checkout
+      - run:
+          name: Deploy Service B to PRD
+          command: echo "Deploying Service B to Production"
+
+  deploy_service_c_prd:
+    executor: default
+    steps:
+      - checkout
+      - run:
+          name: Deploy Service C to PRD
+          command: echo "Deploying Service C to Production"
+
+# ワークフローの定義
+workflows:
+  version: 2
+
+  deploy_staging:
+    jobs:
+      - deploy_service_a_stg
+      - deploy_service_b_stg
+      - deploy_service_c_stg
+
+  deploy_prd:
+    jobs:
+      - approval_job:
+          type: approval
+      - deploy_service_a_prd:
+          requires:
+            - approval_job
+      - deploy_service_b_prd:
+          requires:
+            - approval_job
+      - deploy_service_c_prd:
+          requires:
+            - approval_job
+
+  main_workflow:
+    jobs:
+      - deploy_staging
+      - approval_job:
+          type: approval
+          requires:
+            - deploy_staging
+      - deploy_prd:
+          requires:
+            - approval_job
