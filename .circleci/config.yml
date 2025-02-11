@@ -169,6 +169,14 @@ jobs:
 workflows:
   version: 2
 
+  approve:
+    jobs:
+      - approval_job:
+          type: approval
+      - approve_other_workflows:
+          requires:
+            - approval_job
+
   deploy_staging:
     jobs:
       - deploy_service_a_stg
@@ -197,13 +205,5 @@ workflows:
           requires:
             - deploy_staging
       - deploy_prd:
-          requires:
-            - approval_job
-
-  approve:
-    jobs:
-      - approval_job:
-          type: approval
-      - approve_other_workflows:
           requires:
             - approval_job
